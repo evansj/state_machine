@@ -396,14 +396,17 @@ module StateMachine
         # states for the attribute
         def create_with_scope(name)
           attribute = self.attribute
-          define_scope(name, lambda {|values| {:conditions => {attribute => values}}})
+          define_scope(name, lambda {|values, owner_class| {:conditions => {attribute => values}}})
         end
         
         # Creates a scope for finding records *without* a particular state or
         # states for the attribute
         def create_without_scope(name)
           attribute = self.attribute
-          define_scope(name, lambda {|values| {:conditions => ["#{attribute} NOT IN (?)", values]}})
+          define_scope(name, lambda {|values, owner_class|
+            connection = owner_class.connection
+            {:conditions => ["#{connection.quote_table_name(owner_class.table_name)}.#{connection.quote_column_name(attribute)} NOT IN (?)", values]}
+          })
         end
         
         # Runs a new database transaction, rolling back any changes by raising
@@ -442,7 +445,7 @@ module StateMachine
               machine_states = klass.state_machine(machine_name).states
               values = states.flatten.map {|state| machine_states.fetch(state).value}
               
-              ::ActiveRecord::NamedScope::Scope.new(klass, scope.call(values))
+              ::ActiveRecord::NamedScope::Scope.new(klass, scope.call(values, owner_class))
             end
           end
           
